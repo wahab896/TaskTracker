@@ -12,11 +12,13 @@ Implemented user flows:
 
 - Create, rename, and delete topics.
 - Create, rename, delete, complete, and reopen tasks.
+- Long-press and multi-select tasks to move or copy them to another topic.
 - Choose a simple timer or a basic Pomodoro work timer per task.
 - Run one global timer at a time; pause, resume, navigate away, and recover it after app restart.
 - Record and total sessions by task and topic.
 - Maintain one checklist-style note per task, with automatic persistence.
-- Configure daily, weekly, or one-time local reminder notifications.
+- Edit checklist items inline; additions, edits, completion changes, and deletions persist automatically.
+- Configure daily, weekly, or one-time local reminder notifications with automatic persistence.
 - View completed/expired tasks and all non-empty checklists.
 - Export, import, or wipe the local JSON data set.
 - Use light/dark system themes.
@@ -38,7 +40,7 @@ Not implemented or incomplete:
 - `expo-file-system` stores one JSON file named `taskTrackerData.json` in the app document directory.
 - `expo-notifications` provides timer completion, running-status, and task reminder notifications.
 - The app is primarily Android-oriented, although iOS and web configuration is present.
-- Notifications require a development/release build for complete testing; Expo Go is insufficient for the full notification flow.
+- Timer alerts are local notifications. Expo Go supports local notifications, but the development/release build is the authoritative environment for Android channels, exact-alarm permission, and background behavior. Native config changes require rebuilding the client.
 - Repository instruction: consult the exact Expo SDK 54 docs at <https://docs.expo.dev/versions/v54.0.0/> before changing code.
 
 Important version note: `package.json` targets SDK 54. The README currently and incorrectly says SDK 57 and Node 18+ in its prerequisites; Expo's SDK 54 reference specifies Node 20.19.x minimum.
@@ -71,6 +73,11 @@ Expected relationships:
 - `activeTimer.sessionId` should refer to an open session for `activeTimer.taskId`.
 - The persisted `endTime` is the countdown source of truth while running; `remainingAtPause` is the source while paused.
 
+Task transfer behavior:
+
+- Moving changes only `topicId`, so sessions, checklist, reminder configuration, status, and timer relationships remain intact.
+- Copying creates new task and checklist-item IDs. It copies the name, timer mode/configuration, and checklist, but starts as `current` with no sessions, schedule, expiry date, completion date, or active timer.
+
 ## Current engineering risks and recommended order
 
 1. Timer accounting correctness: `endSession` calculates wall-clock time from session start to stop. This includes paused time and can over-count when an expired background timer is reconciled after its intended end. Store accumulated/running duration explicitly or clamp automatic completion to the timer deadline.
@@ -92,14 +99,19 @@ On 2026-09-26:
 - Expo Doctor 1.20.4 passed all 18 checks after alignment.
 - `npm audit --omit=dev` reported 24 transitive advisories (20 moderate, 4 high, 0 critical). Available blanket fixes require incompatible Expo/package major changes and were not applied.
 - No automated app tests were runnable from `package.json`.
-- The repository has no commits yet and contains existing staged/unstaged work. Preserve user changes carefully.
+- The public GitHub repository is `wahab896/TaskTracker`; `main` tracks `origin/main`.
 
 ## Decisions and history
 
-- 2026-09-26: Created this project memory after a workspace review. No application behavior was changed.
-- Existing decision: local JSON storage is preferred for portability and simple export/import; there is no backend.
-- Existing decision: timer state is global and persisted so leaving the timer screen does not stop it.
-- Existing decision: the running Android notification is static; a live countdown/foreground service is deferred.
+### 2026-09-26
+
+- Created the initial repository review and durable project memory.
+- Confirmed local JSON storage as the portability/export strategy; no backend is planned currently.
+- Kept timer state global and persisted so navigation does not stop a running timer.
+- Deferred a true live-countdown Android foreground service; the running notification remains static.
+- Added long-press multi-selection for moving and copying tasks between topics. Moves preserve history; copies are fresh tasks and duplicate checklist content only.
+- Made checklist text editable inline and changed reminder controls to save automatically without separate save buttons; notification rescheduling is serialized so rapid changes resolve to the final selection.
+- Fixed timer-completion notification delivery: create the Android channel before permission requests, configure the native plugin/exact-alarm permission, attach the channel to the trigger, retain naturally delivered completion notifications, add sound/deep-link data, warn when permission is unavailable, and provide a one-second Settings diagnostic.
 
 ## Update checklist
 
@@ -110,7 +122,7 @@ After meaningful work, update:
 3. Schema version/migrations when persisted data changes.
 4. Risks: remove resolved items and add newly discovered ones.
 5. Review snapshot with the exact checks run and their results.
-6. Decisions/history with a dated, one-line summary of behavior-changing work.
+6. Decisions/history under the existing date heading; group related work into concise summaries instead of adding a new date entry per prompt.
 7. `README.md` when setup or user-facing behavior changes.
 
 Do not store secrets, tokens, personal data, generated build artifacts, or temporary debugging notes here.

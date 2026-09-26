@@ -12,7 +12,18 @@ A personal Android time-tracking app — organize work into Topics → Tasks, ru
 | Android phone | Android 8+ | for on-device testing |
 | EAS CLI | latest | only needed for building the dev client / APK |
 
-**Important:** this project uses `expo-notifications` for background timer completion, which is **not supported in plain Expo Go** (removed from Expo Go as of SDK 53+). You need a custom **development build** to test the full timer flow, including background completion. Plain Expo Go works fine for everything else (Topics, Tasks, Notes, CRUD) but will silently skip scheduling background notifications.
+**Important:** timer completion alerts are local notifications. Expo Go supports local notifications, but Android background timing, channels, and native permissions should be verified with the custom **development build**. Remote push notifications are the capability removed from Expo Go on Android in SDK 53+; TaskTracker does not currently use remote push.
+
+## Task organization
+
+Long-press a task inside a topic to enter multi-select mode. Select one or more tasks, then choose:
+
+- **Move**: changes their topic while preserving checklist, schedule, status, and session history.
+- **Copy**: creates fresh current tasks in another topic with the same name, timer configuration, and checklist. Copies do not inherit tracked sessions, reminders, expiry dates, or completion state.
+
+Both operations are saved immediately to the local JSON data file.
+
+Checklist items can be tapped to edit them inline and save automatically when editing finishes. Reminder frequency, time, date, and weekday changes also save immediately; there is no separate save action.
 
 ## First-time setup
 
@@ -24,9 +35,9 @@ npm install
 npm list expo
 ```
 
-## Building a development client (required for notifications)
+## Building a development client (recommended for notification testing)
 
-Plain Expo Go can't run this project's notification code. Build your own dev client once — it behaves like Expo Go but includes every native module this project needs.
+Build your own dev client to test the same native notification configuration used by release builds.
 
 ```bash
 # 1. Install EAS CLI globally (one-time, machine-wide)
@@ -46,6 +57,10 @@ eas build --profile development --platform android
 This takes roughly 10–20 minutes depending on EAS's build queue. When it finishes, your terminal (and the EAS build page) will show a download link — install that APK directly on your Android phone (you'll need to allow "install from unknown sources" once).
 
 You only need to repeat this build if you add a **new native module** later (e.g. another `expo-*` package that needs native code). Plain JS/TS changes never require a rebuild.
+
+Changes to native app configuration also require a rebuild. After pulling the notification reliability changes that added the `expo-notifications` config plugin and Android exact-alarm permission, rebuild and reinstall the development client before testing background timer completion.
+
+Use **Settings -> Test Notification** to schedule a one-second local alert. If it does not appear after rebuilding, verify that notifications (and, where exposed by Android, alarms/reminders) are allowed for TaskTracker in system settings.
 
 ## Running the app day-to-day
 
