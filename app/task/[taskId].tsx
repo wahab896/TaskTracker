@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, View, useThemeColor } from '@/components/Themed';
 import { scheduleRemindersForTask } from '@/services/scheduling';
 import { useTaskStore } from '@/store/useTaskStore';
-import { NoteItem, ScheduleFrequency } from '@/types';
+import { NoteItem, ScheduleFrequency, Task } from '@/types';
 import { formatDuration } from '@/utils/time';
 
 import { useRef } from 'react';
@@ -39,6 +39,7 @@ export default function TaskDetailScreen() {
   const updateNote = useTaskStore((state) => state.updateNote);
 
   const listRef = useRef<FlatList>(null);
+  const reminderSyncRef = useRef<Promise<void>>(Promise.resolve());
 
   const textColor = useThemeColor({}, 'text');
   const placeholderColor = useThemeColor({}, 'tabIconDefault');
@@ -60,9 +61,11 @@ export default function TaskDetailScreen() {
 
   const existingNote = useMemo(() => allNotes.find((n) => n.taskId === taskId), [allNotes, taskId]);
 
-  // --- Checklist (note) local draft state — nothing persists until Save ---
+  // --- Checklist (note) local draft state with automatic persistence ---
   const [draftItems, setDraftItems] = useState<NoteItem[]>(existingNote?.items ?? []);
   const [newItemText, setNewItemText] = useState('');
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemText, setEditingItemText] = useState('');
 
   useEffect(() => {
     setDraftItems(existingNote?.items ?? []);
@@ -89,6 +92,22 @@ export default function TaskDetailScreen() {
     const newItems = draftItems.filter((i) => i.id !== id);
     setDraftItems(newItems);
     saveChecklist(newItems);
+  };
+
+  const startEditingItem = (item: NoteItem) => {
+    setEditingItemId(item.id);
+    setEditingItemText(item.text);
+  };
+
+  const finishEditingItem = (id: string, text: string) => {
+    const trimmed = text.trim();
+    const newItems = trimmed
+      ? draftItems.map((item) => (item.id === id ? { ...item, text: trimmed } : item))
+      : draftItems.filter((item) => item.id !== id);
+    setDraftItems(newItems);
+    saveChecklist(newItems);
+    setEditingItemId(null);
+    setEditingItemText('');
   };
 
   const allDone = draftItems.length > 0 && draftItems.every((i) => i.done);
@@ -127,31 +146,53 @@ export default function TaskDetailScreen() {
   );
   const [draftDays, setDraftDays] = useState<number[]>(task?.schedule?.daysOfWeek ?? []);
 
-  const toggleDay = (day: number) => {
-    setDraftDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
+  const queueReminderSync = (schedule: Task['schedule']) => {
+    if (!task) return;
+    const taskSnapshot = { ...task, schedule };
+    reminderSyncRef.current = reminderSyncRef.current
+      .catch(() => undefined)
+      .then(() => scheduleRemindersForTask(taskSnapshot));
   };
 
-  const handleSaveSchedule = () => {
+  const persistSchedule = (
+    frequency: ScheduleFrequency | 'none',
+    time = draftTime,
+    date = draftDate,
+    days = draftDays
+  ) => {
     if (!task) return;
 
-    if (draftFrequency === 'none') {
+    if (frequency === 'none') {
       updateTaskSchedule(task.id, null);
-      scheduleRemindersForTask({ ...task, schedule: null });
+      queueReminderSync(null);
       return;
     }
 
-    const hh = draftTime.getHours().toString().padStart(2, '0');
-    const mm = draftTime.getMinutes().toString().padStart(2, '0');
+    const hh = time.getHours().toString().padStart(2, '0');
+    const mm = time.getMinutes().toString().padStart(2, '0');
 
     const newSchedule = {
-      frequency: draftFrequency,
+      frequency,
       scheduledTime: `${hh}:${mm}`,
-      daysOfWeek: draftFrequency === 'weekly' ? draftDays : null,
-      scheduledDate: draftFrequency === 'once' ? draftDate.toISOString() : null,
+      daysOfWeek: frequency === 'weekly' ? days : null,
+      scheduledDate: frequency === 'once' ? date.toISOString() : null,
     };
 
     updateTaskSchedule(task.id, newSchedule);
-    scheduleRemindersForTask({ ...task, schedule: newSchedule });
+    queueReminderSync(newSchedule);
+  };
+
+  const changeFrequency = (frequency: ScheduleFrequency | 'none') => {
+    setDraftFrequency(frequency);
+    persistSchedule(frequency);
+  };
+
+  const toggleDay = (day: number) => {
+    const nextDays = draftDays.includes(day)
+      ? draftDays.filter((currentDay) => currentDay !== day)
+      : [...draftDays, day];
+    setDraftDays(nextDays);
+    persistSchedule(draftFrequency, draftTime, draftDate, nextDays);
   };
   // --- end scheduling state ---
 
@@ -230,9 +271,22 @@ export default function TaskDetailScreen() {
                         color={item.done ? '#22C55E' : textColor}
                       />
                     </Pressable>
-                    <Text style={[styles.checklistText, item.done && styles.checklistTextDone]}>
-                      {item.text}
-                    </Text>
+                    {editingItemId === item.id ? (
+                      <TextInput
+                        style={[styles.checklistEditInput, { color: textColor }]}
+                        value={editingItemText}
+                        onChangeText={setEditingItemText}
+                        onEndEditing={(event) => finishEditingItem(item.id, event.nativeEvent.text)}
+                        autoFocus
+                        returnKeyType="done"
+                      />
+                    ) : (
+                      <Pressable style={styles.checklistTextButton} onPress={() => startEditingItem(item)}>
+                        <Text style={[styles.checklistText, item.done && styles.checklistTextDone]}>
+                          {item.text}
+                        </Text>
+                      </Pressable>
+                    )}
                     <Pressable onPress={() => removeDraftItem(item.id)} style={styles.checklistDelete}>
                       <FontAwesome name="close" size={16} color="#EF4444" />
                     </Pressable>
@@ -266,7 +320,7 @@ export default function TaskDetailScreen() {
                     <Pressable
                       key={freq}
                       style={[styles.freqButton, draftFrequency === freq && styles.freqButtonActive]}
-                      onPress={() => setDraftFrequency(freq)}>
+                      onPress={() => changeFrequency(freq)}>
                       <Text style={draftFrequency === freq ? styles.freqTextActive : styles.freqText}>
                         {freq === 'none' ? 'None' : freq[0].toUpperCase() + freq.slice(1)}
                       </Text>
@@ -287,7 +341,10 @@ export default function TaskDetailScreen() {
                         mode="time"
                         onChange={(_, selected) => {
                           setShowTimePicker(false);
-                          if (selected) setDraftTime(selected);
+                          if (selected) {
+                            setDraftTime(selected);
+                            persistSchedule(draftFrequency, selected);
+                          }
                         }}
                       />
                     )}
@@ -319,7 +376,10 @@ export default function TaskDetailScreen() {
                             minimumDate={new Date()}
                             onChange={(_, selected) => {
                               setShowDatePicker(false);
-                              if (selected) setDraftDate(selected);
+                              if (selected) {
+                                setDraftDate(selected);
+                                persistSchedule(draftFrequency, draftTime, selected);
+                              }
                             }}
                           />
                         )}
@@ -327,9 +387,7 @@ export default function TaskDetailScreen() {
                     )}
                   </>
                 )}
-                <Pressable style={styles.saveScheduleButton} onPress={handleSaveSchedule}>
-                  <Text style={styles.saveScheduleButtonText}>Save Reminder</Text>
-                </Pressable>
+                <Text style={styles.autoSaveHint}>Changes save automatically</Text>
               </View>
               <Text style={styles.sectionTitle}>Session History</Text>
             </View>
@@ -412,8 +470,13 @@ const styles = StyleSheet.create({
   toggleAllText: { color: '#4F46E5', fontSize: 13, fontWeight: '600' },
   checklistRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   checkbox: { padding: 2 },
-  checklistText: { flex: 1, fontSize: 14 },
+  checklistTextButton: { flex: 1, paddingVertical: 4 },
+  checklistText: { fontSize: 14 },
   checklistTextDone: { textDecorationLine: 'line-through', opacity: 0.5 },
+  checklistEditInput: {
+    flex: 1, borderWidth: 1, borderColor: '#4F46E5', borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 4, fontSize: 14,
+  },
   checklistDelete: { padding: 4 },
   addItemRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   addItemInput: {
@@ -467,14 +530,7 @@ const styles = StyleSheet.create({
   dayChipActive: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
   dayText: { fontSize: 12 },
   dayTextActive: { fontSize: 12, color: '#fff', fontWeight: '600' },
-  saveScheduleButton: {
-    backgroundColor: '#4F46E5',
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  saveScheduleButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  autoSaveHint: { fontSize: 11, opacity: 0.5, marginTop: 2 },
   sessionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
