@@ -1,0 +1,3 @@
+# Good to have changes:
+1. When timer is running, then when we click the back button, it seems the timer stops ?, or if the app is running in background then it should show in notification bar the timer is executing.
+2. For notes, if we type something there. I think there should be a save button to update the notes, instead of clicking anywhere else
