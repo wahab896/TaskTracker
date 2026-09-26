@@ -5,7 +5,7 @@ try {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
-      shouldPlaySound: false,
+      shouldPlaySound: true,
       shouldSetBadge: false,
       shouldShowBanner: true,
       shouldShowList: true,
@@ -23,24 +23,30 @@ export async function ensureNotificationChannel(): Promise<void> {
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
       name: 'Timers',
       importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
       vibrationPattern: [0, 300, 150, 300],
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
-  } catch {}
+  } catch (error) {
+    console.warn('[notifications] Failed to create Android notification channel:', error);
+  }
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
+    await ensureNotificationChannel();
     const { status } = await Notifications.getPermissionsAsync();
     if (status === 'granted') return true;
     const { status: newStatus } = await Notifications.requestPermissionsAsync();
     return newStatus === 'granted';
-  } catch {
+  } catch (error) {
+    console.warn('[notifications] Failed to request notification permission:', error);
     return false;
   }
 }
 
 export async function scheduleCompletionNotification(
+  taskId: string,
   taskName: string,
   secondsFromNow: number
 ): Promise<string | null> {
@@ -49,16 +55,43 @@ export async function scheduleCompletionNotification(
       content: {
         title: 'Timer complete',
         body: `"${taskName}" finished — tap to review.`,
+        data: { taskId, type: 'timer-complete' },
+        sound: 'default',
         vibrate: [0, 300, 150, 300],
-        ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
         seconds: Math.max(1, secondsFromNow),
+        ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
       },
     });
-  } catch {
+  } catch (error) {
+    console.warn('[notifications] Failed to schedule timer completion:', error);
     return null;
+  }
+}
+
+export async function scheduleTestNotification(): Promise<boolean> {
+  const granted = await requestNotificationPermission();
+  if (!granted) return false;
+
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'TaskTracker notifications work',
+        body: 'Timer completion alerts are enabled on this device.',
+        sound: 'default',
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: 1,
+        ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
+      },
+    });
+    return true;
+  } catch (error) {
+    console.warn('[notifications] Failed to schedule test notification:', error);
+    return false;
   }
 }
 
@@ -66,7 +99,9 @@ export async function cancelScheduledNotification(notificationId: string | null)
   if (!notificationId) return;
   try {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
-  } catch {}
+  } catch (error) {
+    console.warn('[notifications] Failed to cancel scheduled notification:', error);
+  }
 }
 
 /** Non-dismissible "in progress" notification while a timer runs. Note:
@@ -85,7 +120,8 @@ export async function showRunningNotification(taskName: string): Promise<string 
       },
       trigger: null,
     });
-  } catch {
+  } catch (error) {
+    console.warn('[notifications] Failed to show running notification:', error);
     return null;
   }
 }
@@ -94,5 +130,7 @@ export async function dismissNotification(notificationId: string | null): Promis
   if (!notificationId) return;
   try {
     await Notifications.dismissNotificationAsync(notificationId);
-  } catch {}
+  } catch (error) {
+    console.warn('[notifications] Failed to dismiss notification:', error);
+  }
 }

@@ -43,6 +43,12 @@ export default function TimerScreen() {
     if (!task) return;
     const result = await beginTimer(task.id, durationSeconds);
     if (!result.ok) Alert.alert('Timer already running', result.reason ?? 'Try again.');
+    else if (!result.notificationsEnabled) {
+      Alert.alert(
+        'Notifications are off',
+        'The timer will still run, but completion alerts are unavailable. Enable notifications for TaskTracker in system settings.'
+      );
+    }
   };
 
   const handleStop = async () => {

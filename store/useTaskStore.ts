@@ -32,7 +32,7 @@ interface TaskStore extends AppData {
   addNote: (taskId: string, items: NoteItem[]) => Note;
   updateNote: (noteId: string, items: NoteItem[]) => void;
 
-  beginTimer: (taskId: string, durationSeconds: number) => Promise<{ ok: boolean; reason?: string }>;
+  beginTimer: (taskId: string, durationSeconds: number) => Promise<{ ok: boolean; reason?: string; notificationsEnabled?: boolean }>;
   pauseTimer: () => Promise<void>;
   resumeTimer: () => Promise<void>;
   stopTimer: (stoppedManually: boolean) => Promise<void>;
@@ -248,11 +248,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     const task = state.tasks.find((t) => t.id === taskId);
     if (!task) return { ok: false, reason: 'Task not found.' };
 
-    await requestNotificationPermission();
+    const notificationsEnabled = await requestNotificationPermission();
 
     const session = state.startSession(taskId, task.timerMode);
     const endTime = Date.now() + durationSeconds * 1000;
-    const completionNotificationId = await scheduleCompletionNotification(task.name, durationSeconds);
+    const completionNotificationId = notificationsEnabled
+      ? await scheduleCompletionNotification(task.id, task.name, durationSeconds)
+      : null;
     const runningNotificationId = await showRunningNotification(task.name);
 
     const activeTimer: ActiveTimer = {
@@ -266,7 +268,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     };
     set({ activeTimer });
     persist(get);
-    return { ok: true };
+    return { ok: true, notificationsEnabled: notificationsEnabled && completionNotificationId !== null };
   },
 
   pauseTimer: async () => {
@@ -289,7 +291,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     const task = tasks.find((t) => t.id === activeTimer.taskId);
     const endTime = Date.now() + activeTimer.remainingAtPause * 1000;
     const completionNotificationId = task
-      ? await scheduleCompletionNotification(task.name, activeTimer.remainingAtPause)
+      ? await scheduleCompletionNotification(task.id, task.name, activeTimer.remainingAtPause)
       : null;
 
     set({ activeTimer: { ...activeTimer, paused: false, endTime, remainingAtPause: null, completionNotificationId } });
@@ -301,7 +303,11 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     if (!activeTimer) return;
 
     get().endSession(activeTimer.sessionId, stoppedManually);
-    await cancelScheduledNotification(activeTimer.completionNotificationId);
+    // A naturally completed timer's scheduled notification is already due.
+    // Cancelling it here races the OS delivery and can suppress the banner/tray entry.
+    if (stoppedManually) {
+      await cancelScheduledNotification(activeTimer.completionNotificationId);
+    }
     await dismissNotification(activeTimer.runningNotificationId);
 
     set({ activeTimer: null });

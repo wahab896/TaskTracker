@@ -37,8 +37,9 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
-    ensureNotificationChannel();
-    requestNotificationPermission();
+    // Android 13 does not show the permission prompt until a channel exists,
+    // so these operations must run in sequence rather than concurrently.
+    void ensureNotificationChannel().then(requestNotificationPermission);
     initialize();
   }, []);
 

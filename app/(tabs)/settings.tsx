@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
+import { scheduleTestNotification } from '@/services/notifications';
 import { exportToShareableFile, importFromFile } from '@/services/storage';
 import { useTaskStore } from '@/store/useTaskStore';
 
@@ -80,6 +81,16 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleTestNotification = async () => {
+    const scheduled = await scheduleTestNotification();
+    if (!scheduled) {
+      Alert.alert(
+        'Notifications unavailable',
+        'Allow notifications for TaskTracker in system settings, then try again.'
+      );
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Settings</Text>
@@ -94,6 +105,10 @@ export default function SettingsScreen() {
 
       <Pressable style={styles.actionButton} onPress={handleImport} disabled={busy}>
         <Text style={styles.actionButtonText}>Import Data</Text>
+      </Pressable>
+
+      <Pressable style={styles.secondaryButton} onPress={handleTestNotification} disabled={busy}>
+        <Text style={styles.secondaryButtonText}>Test Notification</Text>
       </Pressable>
 
       <Pressable style={styles.dangerButton} onPress={handleWipe} disabled={busy}>
@@ -120,6 +135,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  secondaryButton: {
+    borderWidth: 1,
+    borderColor: '#4F46E5',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  secondaryButtonText: { color: '#4F46E5', fontWeight: '700', fontSize: 15 },
   dangerButton: {
     borderWidth: 2,
     borderColor: '#EF4444',
