@@ -23,6 +23,8 @@ interface TaskStore extends AppData {
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   updateTaskSchedule: (taskId: string, schedule: Task['schedule']) => void;
   deleteTask: (taskId: string) => void;
+  moveTasks: (taskIds: string[], destinationTopicId: string) => void;
+  copyTasks: (taskIds: string[], destinationTopicId: string) => Task[];
 
   startSession: (taskId: string, type: Task['timerMode']) => Session;
   endSession: (sessionId: string, stoppedManually: boolean) => void;
@@ -132,6 +134,64 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       notes: state.notes.filter((n) => n.taskId !== taskId),
     }));
     persist(get);
+  },
+
+  moveTasks: (taskIds, destinationTopicId) => {
+    const ids = new Set(taskIds);
+    if (!get().topics.some((topic) => topic.id === destinationTopicId)) return;
+
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        ids.has(task.id) ? { ...task, topicId: destinationTopicId } : task
+      ),
+    }));
+    persist(get);
+  },
+
+  copyTasks: (taskIds, destinationTopicId) => {
+    const state = get();
+    if (!state.topics.some((topic) => topic.id === destinationTopicId)) return [];
+
+    const ids = new Set(taskIds);
+    const now = new Date().toISOString();
+    const taskIdMap = new Map<string, string>();
+    const copies: Task[] = state.tasks
+      .filter((task) => ids.has(task.id))
+      .map((task) => {
+        const id = Crypto.randomUUID();
+        taskIdMap.set(task.id, id);
+        return {
+          ...task,
+          id,
+          topicId: destinationTopicId,
+          pomodoroConfig: task.pomodoroConfig ? { ...task.pomodoroConfig } : null,
+          schedule: null,
+          expiryDate: null,
+          status: 'current',
+          createdAt: now,
+          completedAt: null,
+        };
+      });
+
+    const noteCopies: Note[] = state.notes.flatMap((note) => {
+      const copiedTaskId = taskIdMap.get(note.taskId);
+      if (!copiedTaskId) return [];
+      return [{
+        ...note,
+        id: Crypto.randomUUID(),
+        taskId: copiedTaskId,
+        items: note.items.map((item) => ({ ...item, id: Crypto.randomUUID() })),
+        createdAt: now,
+        updatedAt: now,
+      }];
+    });
+
+    set((current) => ({
+      tasks: [...current.tasks, ...copies],
+      notes: [...current.notes, ...noteCopies],
+    }));
+    persist(get);
+    return copies;
   },
 
   startSession: (taskId, type) => {

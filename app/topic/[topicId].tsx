@@ -1,7 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, TextInput } from 'react-native';
+import { Alert, FlatList, Modal, Pressable, StyleSheet, TextInput } from 'react-native';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
 import { useTaskStore } from '@/store/useTaskStore';
@@ -19,11 +19,14 @@ export default function TopicDetailScreen() {
   const insets = useSafeAreaInsets();
 
   const topic = useTaskStore((state) => state.topics.find((t) => t.id === topicId));
+  const topics = useTaskStore((state) => state.topics);
   const allTasks = useTaskStore((state) => state.tasks);
   const allSessions = useTaskStore((state) => state.sessions);
   const addTask = useTaskStore((state) => state.addTask);
   const updateTask = useTaskStore((state) => state.updateTask);
   const deleteTask = useTaskStore((state) => state.deleteTask);
+  const moveTasks = useTaskStore((state) => state.moveTasks);
+  const copyTasks = useTaskStore((state) => state.copyTasks);
 
   const textColor = useThemeColor({}, 'text');
   const placeholderColor = useThemeColor({}, 'tabIconDefault');
@@ -32,6 +35,8 @@ export default function TopicDetailScreen() {
   const [selectedMode, setSelectedMode] = useState<TimerMode>('simple');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [transferMode, setTransferMode] = useState<'move' | 'copy' | null>(null);
 
   const tasks = useMemo(
     () => allTasks.filter((t) => t.topicId === topicId),
@@ -47,6 +52,38 @@ export default function TopicDetailScreen() {
 
   const getTotalSecondsForTask = (taskId: string) =>
     allSessions.filter((s) => s.taskId === taskId).reduce((sum, s) => sum + s.durationSeconds, 0);
+
+  const selectionActive = selectedIds.size > 0;
+  const destinationTopics = topics.filter((item) => item.id !== topicId);
+
+  const toggleSelection = (taskId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const cancelSelection = () => {
+    setSelectedIds(new Set());
+    setTransferMode(null);
+  };
+
+  const openTransfer = (mode: 'move' | 'copy') => {
+    if (destinationTopics.length === 0) {
+      Alert.alert('No destination topic', 'Create another topic before moving or copying tasks.');
+      return;
+    }
+    setTransferMode(mode);
+  };
+
+  const completeTransfer = (destinationTopicId: string) => {
+    const taskIds = Array.from(selectedIds);
+    if (transferMode === 'move') moveTasks(taskIds, destinationTopicId);
+    if (transferMode === 'copy') copyTasks(taskIds, destinationTopicId);
+    cancelSelection();
+  };
 
   if (!topic) {
     return (
@@ -111,6 +148,23 @@ export default function TopicDetailScreen() {
         <Text style={styles.headerTitle}>{topic.name}</Text>
         <Text style={styles.headerSubtitle}>{formatDuration(totalSeconds)} total</Text>
       </View>
+
+      {selectionActive && (
+        <View style={styles.selectionBar}>
+          <Text style={styles.selectionCount}>{selectedIds.size} selected</Text>
+          <Pressable style={styles.selectionAction} onPress={() => openTransfer('move')}>
+            <FontAwesome name="arrow-right" size={14} color="#fff" />
+            <Text style={styles.selectionActionText}>Move</Text>
+          </Pressable>
+          <Pressable style={styles.selectionAction} onPress={() => openTransfer('copy')}>
+            <FontAwesome name="copy" size={14} color="#fff" />
+            <Text style={styles.selectionActionText}>Copy</Text>
+          </Pressable>
+          <Pressable onPress={cancelSelection} style={styles.selectionCancel}>
+            <FontAwesome name="close" size={18} color="#fff" />
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.addSection}>
         <TextInput
@@ -178,28 +232,65 @@ export default function TopicDetailScreen() {
           }
 
           return (
-            <View style={styles.taskCard}>
+            <View style={[styles.taskCard, selectedIds.has(item.id) && styles.taskCardSelected]}>
               <Pressable
                 style={styles.taskContent}
-                onPress={() => router.push(`/task/${item.id}`)}>
+                onPress={() => selectionActive ? toggleSelection(item.id) : router.push(`/task/${item.id}`)}
+                onLongPress={() => toggleSelection(item.id)}>
+                {selectionActive && (
+                  <FontAwesome
+                    name={selectedIds.has(item.id) ? 'check-circle' : 'circle-o'}
+                    size={20}
+                    color={selectedIds.has(item.id) ? '#4F46E5' : textColor}
+                    style={styles.selectionIcon}
+                  />
+                )}
                 <Text style={styles.taskName}>{item.name}</Text>
                 <Text style={styles.taskMeta}>
                   {item.timerMode === 'pomodoro' ? 'Pomodoro' : 'Simple'} · {formatDuration(taskSeconds)}
                 </Text>
               </Pressable>
-              <View style={[styles.statusBadge, statusStyles[item.status]]}>
+              {!selectionActive && <View style={[styles.statusBadge, statusStyles[item.status]]}>
                 <Text style={styles.statusText}>{item.status}</Text>
-              </View>
-              <Pressable onPress={() => startEditing(item.id, item.name)} style={styles.iconButton}>
+              </View>}
+              {!selectionActive && <Pressable onPress={() => startEditing(item.id, item.name)} style={styles.iconButton}>
                 <FontAwesome name="pencil" size={15} color={textColor} />
-              </Pressable>
-              <Pressable onPress={() => confirmDelete(item.id, item.name)} style={styles.iconButton}>
+              </Pressable>}
+              {!selectionActive && <Pressable onPress={() => confirmDelete(item.id, item.name)} style={styles.iconButton}>
                 <FontAwesome name="trash" size={15} color="#EF4444" />
-              </Pressable>
+              </Pressable>}
             </View>
           );
         }}
       />
+
+      <Modal
+        visible={transferMode !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTransferMode(null)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setTransferMode(null)}>
+          <Pressable style={styles.destinationCard} onPress={(event) => event.stopPropagation()}>
+            <Text style={styles.destinationTitle}>
+              {transferMode === 'move' ? 'Move' : 'Copy'} {selectedIds.size}{' '}
+              {selectedIds.size === 1 ? 'task' : 'tasks'} to
+            </Text>
+            {destinationTopics.map((destination) => (
+              <Pressable
+                key={destination.id}
+                style={styles.destinationRow}
+                onPress={() => completeTransfer(destination.id)}>
+                <View style={[styles.destinationDot, { backgroundColor: destination.color }]} />
+                <Text style={styles.destinationName}>{destination.name}</Text>
+                <FontAwesome name="chevron-right" size={13} color={textColor} />
+              </Pressable>
+            ))}
+            <Pressable style={styles.destinationCancel} onPress={() => setTransferMode(null)}>
+              <Text style={styles.destinationCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -260,6 +351,32 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(128,128,128,0.08)',
     gap: 4,
   },
+  taskCardSelected: { borderWidth: 2, borderColor: '#4F46E5', padding: 12 },
+  selectionIcon: { marginBottom: 6 },
+  selectionBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 12,
+    padding: 10, borderRadius: 10, backgroundColor: '#312E81',
+  },
+  selectionCount: { flex: 1, color: '#fff', fontWeight: '700' },
+  selectionAction: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#4F46E5',
+    borderRadius: 7, paddingHorizontal: 10, paddingVertical: 8,
+  },
+  selectionActionText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  selectionCancel: { padding: 7 },
+  modalBackdrop: {
+    flex: 1, justifyContent: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  destinationCard: { borderRadius: 14, padding: 18, backgroundColor: '#fff' },
+  destinationTitle: { color: '#111827', fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  destinationRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#D1D5DB',
+  },
+  destinationDot: { width: 12, height: 12, borderRadius: 6 },
+  destinationName: { flex: 1, color: '#111827', fontSize: 15, fontWeight: '600' },
+  destinationCancel: { alignItems: 'center', paddingTop: 16 },
+  destinationCancelText: { color: '#4F46E5', fontWeight: '700' },
   taskContent: { flex: 1 },
   taskName: { fontSize: 15, fontWeight: '600' },
   taskMeta: { fontSize: 12, opacity: 0.6, marginTop: 4 },
