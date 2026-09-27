@@ -78,11 +78,31 @@ export default function TopicDetailScreen() {
     setTransferMode(mode);
   };
 
-  const completeTransfer = (destinationTopicId: string) => {
+  const completeTransfer = (destinationTopicId: string, mode: 'move' | 'copy') => {
     const taskIds = Array.from(selectedIds);
-    if (transferMode === 'move') moveTasks(taskIds, destinationTopicId);
-    if (transferMode === 'copy') copyTasks(taskIds, destinationTopicId);
+    if (mode === 'move') moveTasks(taskIds, destinationTopicId);
+    if (mode === 'copy') copyTasks(taskIds, destinationTopicId);
     cancelSelection();
+  };
+
+  const confirmTransfer = (destinationTopicId: string) => {
+    const destination = destinationTopics.find((item) => item.id === destinationTopicId);
+    const mode = transferMode;
+    if (!destination || !mode) return;
+
+    setTransferMode(null);
+    const action = mode === 'move' ? 'Move' : 'Copy';
+    Alert.alert(
+      `${action} ${selectedIds.size === 1 ? 'task' : 'tasks'}?`,
+      `${action} ${selectedIds.size} selected ${selectedIds.size === 1 ? 'task' : 'tasks'} to "${destination.name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: action,
+          onPress: () => completeTransfer(destinationTopicId, mode),
+        },
+      ]
+    );
   };
 
   if (!topic) {
@@ -166,7 +186,7 @@ export default function TopicDetailScreen() {
         </View>
       )}
 
-      <View style={styles.addSection}>
+      {!selectionActive && <View style={styles.addSection}>
         <TextInput
           style={[styles.input, { color: textColor }]}
           placeholder="New task name"
@@ -196,7 +216,7 @@ export default function TopicDetailScreen() {
             <Text style={styles.addButtonText}>Add</Text>
           </Pressable>
         </View>
-      </View>
+      </View>}
 
       <FlatList
         data={tasks}
@@ -279,7 +299,7 @@ export default function TopicDetailScreen() {
               <Pressable
                 key={destination.id}
                 style={styles.destinationRow}
-                onPress={() => completeTransfer(destination.id)}>
+                onPress={() => confirmTransfer(destination.id)}>
                 <View style={[styles.destinationDot, { backgroundColor: destination.color }]} />
                 <Text style={styles.destinationName}>{destination.name}</Text>
                 <FontAwesome name="chevron-right" size={13} color={textColor} />
