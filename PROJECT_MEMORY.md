@@ -1,6 +1,6 @@
 # TaskTracker Project Memory
 
-Last reviewed: 2026-09-26
+Last reviewed: 2026-09-27
 
 This file is the durable handoff for developers and AI agents. Update it whenever a feature, schema, dependency, architectural decision, or known issue changes. Keep detailed user documentation in `README.md`; keep this file focused on project state and engineering history.
 
@@ -11,8 +11,10 @@ TaskTracker is a personal, local-first Expo/React Native app for organizing work
 Implemented user flows:
 
 - Create, rename, and delete topics.
+- Pin priority topics so they sort above unpinned topics.
 - Create, rename, delete, complete, and reopen tasks.
 - Long-press and multi-select tasks to move or copy them to another topic.
+- Pin priority tasks so they sort above unpinned tasks.
 - Choose a simple timer or a basic Pomodoro work timer per task.
 - Run one global timer at a time; pause, resume, navigate away, and recover it after app restart.
 - Record and total sessions by task and topic.
@@ -60,9 +62,9 @@ Important version note: `package.json` targets SDK 54. The README currently and 
 
 ## Persisted data and invariants
 
-Current storage schema version: 2.
+Current storage schema version: 3.
 
-The persisted `AppData` contains topics, tasks, sessions, notes, and at most one `activeTimer`. Schema v2 migrated legacy free-text notes into checklist items. New schema changes must increment `CURRENT_SCHEMA_VERSION` in `services/storage.ts` and add an explicit migration.
+The persisted `AppData` contains topics, tasks, sessions, notes, and at most one `activeTimer`. Schema v2 migrated legacy free-text notes into checklist items. Schema v3 added `pinned` to topics and tasks, defaulting existing/imported records to `false`. New schema changes must increment `CURRENT_SCHEMA_VERSION` in `services/storage.ts` and add an explicit migration.
 
 Expected relationships:
 
@@ -102,6 +104,11 @@ On 2026-09-26:
 - The public GitHub repository is `wahab896/TaskTracker`; `main` tracks `origin/main`.
 
 ## Decisions and history
+
+### 2026-09-27
+
+- Refined task transfers by hiding creation controls during selection and requiring destination confirmation before moving or copying.
+- Added persisted topic/task pinning for priority ordering instead of drag-and-drop reordering. Pinned items sort first while each group retains its stored creation order.
 
 ### 2026-09-26
 

@@ -23,6 +23,10 @@ Long-press a task inside a topic to enter multi-select mode. Select one or more 
 
 Both operations are saved immediately to the local JSON data file.
 
+While tasks are selected, the new-task controls are hidden. Choosing a destination opens a confirmation dialog before anything is moved or copied.
+
+Use the pin icon on a topic or task to keep priority items at the top of their list. Unpinned items retain their existing creation order.
+
 Checklist items can be tapped to edit them inline and save automatically when editing finishes. Reminder frequency, time, date, and weekday changes also save immediately; there is no separate save action.
 
 ## First-time setup
