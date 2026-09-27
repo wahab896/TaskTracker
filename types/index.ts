@@ -19,6 +19,7 @@ export interface Topic {
   id: string;
   name: string;
   color: string;
+  pinned: boolean;
   createdAt: string;
 }
 
@@ -26,6 +27,7 @@ export interface Task {
   id: string;
   topicId: string;
   name: string;
+  pinned: boolean;
   timerMode: TimerMode;
   pomodoroConfig: PomodoroConfig | null;
   schedule: Schedule | null;

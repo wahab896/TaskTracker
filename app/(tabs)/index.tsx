@@ -1,6 +1,6 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, TextInput } from 'react-native';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
@@ -15,6 +15,7 @@ export default function HomeScreen() {
   const topics = useTaskStore((state) => state.topics);
   const addTopic = useTaskStore((state) => state.addTopic);
   const updateTopic = useTaskStore((state) => state.updateTopic);
+  const toggleTopicPinned = useTaskStore((state) => state.toggleTopicPinned);
   const deleteTopic = useTaskStore((state) => state.deleteTopic);
   const getTotalSecondsForTopic = useTaskStore((state) => state.getTotalSecondsForTopic);
 
@@ -24,6 +25,11 @@ export default function HomeScreen() {
   const [newTopicName, setNewTopicName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+
+  const sortedTopics = useMemo(
+    () => [...topics].sort((a, b) => Number(b.pinned) - Number(a.pinned)),
+    [topics]
+  );
 
   const handleAddTopic = () => {
     const trimmed = newTopicName.trim();
@@ -82,7 +88,7 @@ export default function HomeScreen() {
       </View>
 
       <FlatList
-        data={topics}
+        data={sortedTopics}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 32 }]}
         ListEmptyComponent={
@@ -123,6 +129,12 @@ export default function HomeScreen() {
                     <Text style={styles.topicHours}>{formatDuration(totalSeconds)}</Text>
                   </Pressable>
                   <View style={styles.cardActions}>
+                    <Pressable
+                      onPress={() => toggleTopicPinned(item.id)}
+                      style={styles.iconButton}
+                      accessibilityLabel={item.pinned ? 'Unpin topic' : 'Pin topic'}>
+                      <FontAwesome name="thumb-tack" size={16} color={item.pinned ? '#F59E0B' : textColor} />
+                    </Pressable>
                     <Pressable onPress={() => startEditing(item.id, item.name)} style={styles.iconButton}>
                       <FontAwesome name="pencil" size={16} color={textColor} />
                     </Pressable>

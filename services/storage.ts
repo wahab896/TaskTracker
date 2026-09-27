@@ -1,8 +1,8 @@
-import { AppData, Note, NoteItem } from '@/types';
+import { AppData, Note, NoteItem, Task, Topic } from '@/types';
 import * as Crypto from 'expo-crypto';
 import { File, Paths } from 'expo-file-system';
 
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 function getDataFile(): File {
   return new File(Paths.document, 'taskTrackerData.json');
@@ -47,6 +47,17 @@ function migrateNotes(rawNotes: any[]): Note[] {
   });
 }
 
+/** v2 -> v3: topics and tasks can be pinned for priority ordering. */
+function migrateTopics(rawTopics: any[]): Topic[] {
+  if (!Array.isArray(rawTopics)) return [];
+  return rawTopics.map((topic) => ({ ...topic, pinned: topic.pinned === true }));
+}
+
+function migrateTasks(rawTasks: any[]): Task[] {
+  if (!Array.isArray(rawTasks)) return [];
+  return rawTasks.map((task) => ({ ...task, pinned: task.pinned === true }));
+}
+
 export async function loadData(): Promise<AppData> {
   try {
     const dataFile = getDataFile();
@@ -62,8 +73,8 @@ export async function loadData(): Promise<AppData> {
 
     const migrated: AppData = {
       version: CURRENT_SCHEMA_VERSION,
-      topics: Array.isArray(parsed.topics) ? parsed.topics : [],
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+      topics: migrateTopics(parsed.topics),
+      tasks: migrateTasks(parsed.tasks),
       sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
       notes: migrateNotes(parsed.notes),
       activeTimer: parsed.activeTimer ?? null,
@@ -125,8 +136,8 @@ export async function importData(jsonString: string): Promise<AppData> {
   // backup can still be imported into the current version
   const migrated: AppData = {
     version: CURRENT_SCHEMA_VERSION,
-    topics: parsed.topics,
-    tasks: parsed.tasks,
+    topics: migrateTopics(parsed.topics),
+    tasks: migrateTasks(parsed.tasks),
     sessions: parsed.sessions,
     notes: migrateNotes(parsed.notes),
     activeTimer: parsed.activeTimer ?? null,

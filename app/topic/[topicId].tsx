@@ -24,6 +24,7 @@ export default function TopicDetailScreen() {
   const allSessions = useTaskStore((state) => state.sessions);
   const addTask = useTaskStore((state) => state.addTask);
   const updateTask = useTaskStore((state) => state.updateTask);
+  const toggleTaskPinned = useTaskStore((state) => state.toggleTaskPinned);
   const deleteTask = useTaskStore((state) => state.deleteTask);
   const moveTasks = useTaskStore((state) => state.moveTasks);
   const copyTasks = useTaskStore((state) => state.copyTasks);
@@ -39,7 +40,9 @@ export default function TopicDetailScreen() {
   const [transferMode, setTransferMode] = useState<'move' | 'copy' | null>(null);
 
   const tasks = useMemo(
-    () => allTasks.filter((t) => t.topicId === topicId),
+    () => allTasks
+      .filter((t) => t.topicId === topicId)
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned)),
     [allTasks, topicId]
   );
 
@@ -273,6 +276,12 @@ export default function TopicDetailScreen() {
               {!selectionActive && <View style={[styles.statusBadge, statusStyles[item.status]]}>
                 <Text style={styles.statusText}>{item.status}</Text>
               </View>}
+              {!selectionActive && <Pressable
+                onPress={() => toggleTaskPinned(item.id)}
+                style={styles.iconButton}
+                accessibilityLabel={item.pinned ? 'Unpin task' : 'Pin task'}>
+                <FontAwesome name="thumb-tack" size={15} color={item.pinned ? '#F59E0B' : textColor} />
+              </Pressable>}
               {!selectionActive && <Pressable onPress={() => startEditing(item.id, item.name)} style={styles.iconButton}>
                 <FontAwesome name="pencil" size={15} color={textColor} />
               </Pressable>}

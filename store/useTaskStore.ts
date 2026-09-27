@@ -16,10 +16,12 @@ interface TaskStore extends AppData {
 
   addTopic: (name: string, color: string) => Topic;
   updateTopic: (topicId: string, name: string) => void;
+  toggleTopicPinned: (topicId: string) => void;
   deleteTopic: (topicId: string) => void;
 
-  addTask: (params: Omit<Task, 'id' | 'createdAt' | 'completedAt' | 'status'>) => Task;
+  addTask: (params: Omit<Task, 'id' | 'createdAt' | 'completedAt' | 'status' | 'pinned'>) => Task;
   updateTask: (taskId: string, name: string) => void;
+  toggleTaskPinned: (taskId: string) => void;
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   updateTaskSchedule: (taskId: string, schedule: Task['schedule']) => void;
   deleteTask: (taskId: string) => void;
@@ -52,7 +54,7 @@ async function persist(get: () => TaskStore) {
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
-  version: 1,
+  version: 3,
   topics: [],
   tasks: [],
   sessions: [],
@@ -66,7 +68,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   },
 
   addTopic: (name, color) => {
-    const topic: Topic = { id: Crypto.randomUUID(), name, color, createdAt: new Date().toISOString() };
+    const topic: Topic = {
+      id: Crypto.randomUUID(),
+      name,
+      color,
+      pinned: false,
+      createdAt: new Date().toISOString(),
+    };
     set((state) => ({ topics: [...state.topics, topic] }));
     persist(get);
     return topic;
@@ -74,6 +82,15 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   updateTopic: (topicId, name) => {
     set((state) => ({ topics: state.topics.map((t) => (t.id === topicId ? { ...t, name } : t)) }));
+    persist(get);
+  },
+
+  toggleTopicPinned: (topicId) => {
+    set((state) => ({
+      topics: state.topics.map((topic) =>
+        topic.id === topicId ? { ...topic, pinned: !topic.pinned } : topic
+      ),
+    }));
     persist(get);
   },
 
@@ -97,6 +114,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     const task: Task = {
       ...params,
       id: Crypto.randomUUID(),
+      pinned: false,
       status: 'current',
       createdAt: new Date().toISOString(),
       completedAt: null,
@@ -108,6 +126,15 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   updateTask: (taskId, name) => {
     set((state) => ({ tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, name } : t)) }));
+    persist(get);
+  },
+
+  toggleTaskPinned: (taskId) => {
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId ? { ...task, pinned: !task.pinned } : task
+      ),
+    }));
     persist(get);
   },
 
@@ -164,6 +191,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
           ...task,
           id,
           topicId: destinationTopicId,
+          pinned: false,
           pomodoroConfig: task.pomodoroConfig ? { ...task.pomodoroConfig } : null,
           schedule: null,
           expiryDate: null,

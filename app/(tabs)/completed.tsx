@@ -25,8 +25,9 @@ export default function CompletedScreen() {
     topics.find((t) => t.id === topicId)?.name ?? 'Unknown topic';
 
   const sections = useMemo(() => {
-    const completed = tasks.filter((t) => t.status === 'completed');
-    const expired = tasks.filter((t) => t.status === 'expired');
+    const byPinned = (a: Task, b: Task) => Number(b.pinned) - Number(a.pinned);
+    const completed = tasks.filter((t) => t.status === 'completed').sort(byPinned);
+    const expired = tasks.filter((t) => t.status === 'expired').sort(byPinned);
 
     const result: { title: string; data: Task[] }[] = [];
     if (completed.length) result.push({ title: 'Completed', data: completed });
