@@ -29,6 +29,8 @@ Use the pin icon on a topic or task to keep priority items at the top of their l
 
 Checklist items can be tapped to edit them inline and save automatically when editing finishes. Reminder frequency, time, date, and weekday changes also save immediately; there is no separate save action.
 
+When a timer is active, a compact global banner shows its task and remaining time across tabs and detail screens. Tap the banner to return to the full timer controls.
+
 ## First-time setup
 
 ```bash

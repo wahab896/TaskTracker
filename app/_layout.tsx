@@ -5,10 +5,11 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef } from 'react';
-import { AppState, Vibration } from 'react-native';
+import { AppState, Vibration, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import ActiveTimerBanner from '@/components/ActiveTimerBanner';
 import { ensureNotificationChannel, requestNotificationPermission } from '@/services/notifications';
 import { resyncAllReminders } from '@/services/scheduling';
 import { useTaskStore } from '@/store/useTaskStore';
@@ -105,10 +106,13 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
+      <View style={{ flex: 1 }}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        </Stack>
+        <ActiveTimerBanner />
+      </View>
     </ThemeProvider>
   );
 }

@@ -17,6 +17,7 @@ Implemented user flows:
 - Pin priority tasks so they sort above unpinned tasks.
 - Choose a simple timer or a basic Pomodoro work timer per task.
 - Run one global timer at a time; pause, resume, navigate away, and recover it after app restart.
+- Show a compact live timer banner across non-timer screens; tapping it opens the full timer.
 - Record and total sessions by task and topic.
 - Maintain one checklist-style note per task, with automatic persistence.
 - Edit checklist items inline; additions, edits, completion changes, and deletions persist automatically.
@@ -109,6 +110,7 @@ On 2026-09-26:
 
 - Refined task transfers by hiding creation controls during selection and requiring destination confirmation before moving or copying.
 - Added persisted topic/task pinning for priority ordering instead of drag-and-drop reordering. Pinned items sort first while each group retains its stored creation order.
+- Added a compact global active-timer banner with live remaining time and one-tap navigation back to the full timer controls.
 
 ### 2026-09-26
 
